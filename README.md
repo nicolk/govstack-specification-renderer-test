@@ -1,3 +1,38 @@
+# govstack-specification-renderer-test
+
+**Unofficial preview.** This repository publishes a GitHub Pages rendering of the
+GovStack File Management Building Block specification for review purposes only.
+It is not an official GovStack publication; the authoritative specifications live
+at <https://specs.govstack.global/>.
+
+- Content: [GovStackWorkingGroup/bb-file-management](https://github.com/GovStackWorkingGroup/bb-file-management),
+  branch `v0.6`, profile `framework`
+- Renderer: this repository, a modified copy of
+  [jeremi/govstack-specification-site](https://github.com/jeremi/govstack-specification-site).
+  Upstream `main` was merged with its full history at
+  [`d79845554e7a3ceeb400c7a1339b67d323776626`](https://github.com/jeremi/govstack-specification-site/commit/d79845554e7a3ceeb400c7a1339b67d323776626)
+  ("fix: keep page navigation subordinate to content"), so later upstream fixes
+  can be merged with `git fetch upstream && git merge upstream/main`.
+- Preview: <https://nicolk.github.io/govstack-specification-renderer-test/>
+
+The [Pages workflow](.github/workflows/pages.yml) builds the content with the
+renderer in this repository (`uses: ./renderer`) on every push to `main`, on
+manual dispatch, and daily so new content commits are picked up. Every page
+carries an "Unofficial preview" banner and is marked `noindex, nofollow`.
+
+## Changes from upstream
+
+- Requirement `contract:` values that are identifiers with a non-http(s) URI
+  scheme, such as `contract: "govstack:spec:bb:information-mediator"`, render as
+  plain code instead of a broken link below the site base. `http(s)` contracts
+  are external links and local paths are linked as before. This replaces the
+  `sed` workaround used by
+  [nicolk/bb-file-management-preview](https://github.com/nicolk/bb-file-management-preview).
+- Added the [GitHub Pages preview workflow](.github/workflows/pages.yml) and this
+  section.
+
+---
+
 # GovStack specification renderer
 
 One Astro/Starlight project renders GovStack specification sources with the

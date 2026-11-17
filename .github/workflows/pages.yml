@@ -1,0 +1,61 @@
+name: Publish preview
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # Daily rebuild so new commits on the content branch are picked up.
+  schedule:
+    - cron: '17 5 * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out renderer (this repository)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: renderer
+          persist-credentials: false
+
+      - name: Check out specification content
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: GovStackWorkingGroup/bb-file-management
+          ref: v0.6
+          path: specification
+          persist-credentials: false
+
+      - name: Build and verify site
+        uses: ./renderer
+        with:
+          source: specification
+          output: ${{ runner.temp }}/site
+          profile: framework
+          base: /govstack-specification-renderer-test/
+          unofficial: 'true'
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
