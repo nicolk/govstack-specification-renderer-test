@@ -28,6 +28,14 @@ carries an "Unofficial preview" banner and is marked `noindex, nofollow`.
   are external links and local paths are linked as before. This replaces the
   `sed` workaround used by
   [nicolk/bb-file-management-preview](https://github.com/nicolk/bb-file-management-preview).
+- The framework sidebar has one "Requirements of <module>" group per
+  `conformance_modules` entry in `metadata.yml`, in metadata order, labelled
+  with the module page's title (e.g. "Requirements of File Management core")
+  and listing its `functionalities` in order. Requirement pages that no module
+  lists stay in a trailing "Requirements" group, and a functionality that is not
+  a requirements page in `toc.yml` fails generation. Without
+  `conformance_modules` the sidebar is unchanged. Section labels turn hyphens
+  into spaces ("Conformance modules" instead of "Conformance-modules").
 - Added the [GitHub Pages preview workflow](.github/workflows/pages.yml) and this
   section.
 
