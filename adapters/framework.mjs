@@ -717,15 +717,79 @@ function transformBody({ page, pageRoutes, pageAnchors, base, metadata, authors,
   return `${generatedFrontmatter({ title, description, pagefind: isArchive ? false : undefined }, unofficial)}${body}`;
 }
 
-function sidebarFromToc(toc, pagesBySource) {
+function sectionLabel(section) {
+  const label = section.replaceAll('-', ' ');
+  return label[0].toUpperCase() + label.slice(1);
+}
+
+const CONFORMANCE_MODULE_KINDS = { CORE: 'core', EXTENSION: 'extension' };
+
+// Requirement navigation follows metadata.yml `conformance_modules`: one group
+// per module in metadata order, items in `functionalities` order. A page that
+// several modules list appears under each; toc requirement pages that no
+// module lists stay in a trailing "Requirements" group.
+function requirementGroups(section, entries, conformanceModules, pagesBySource) {
+  const item = (source) => {
+    const page = pagesBySource.get(source);
+    return { label: page.title, slug: page.route };
+  };
+  const sources = entries.map((entry) => path.posix.join(section, entry));
+  if (conformanceModules === undefined || conformanceModules === null) {
+    return [{ label: sectionLabel(section), items: sources.map(item) }];
+  }
+  if (!Array.isArray(conformanceModules)) throw new Error('metadata.yml: conformance_modules must be a list');
+  const listed = new Set(sources);
+  const assigned = new Set();
+  const groups = conformanceModules.map((module, index) => {
+    const name = module?.id ?? `#${index + 1}`;
+    if (!Array.isArray(module?.functionalities)) {
+      throw new Error(`metadata.yml: conformance module ${name} requires a functionalities list`);
+    }
+    let label;
+    if (module.page) {
+      const page = pagesBySource.get(module.page);
+      if (!page) throw new Error(`metadata.yml: conformance module ${name} page ${module.page} is not listed in toc.yml`);
+      label = page.title;
+    } else {
+      const kind = CONFORMANCE_MODULE_KINDS[module.type];
+      if (!module.title || !kind) {
+        throw new Error(`metadata.yml: conformance module ${name} without a page requires a title and type CORE or EXTENSION`);
+      }
+      label = `${module.title} ${kind}`;
+    }
+    const items = module.functionalities.map((functionality) => {
+      const source = path.posix.join(section, String(functionality));
+      if (!listed.has(source)) {
+        throw new Error(
+          `metadata.yml: conformance module ${name} functionality ${functionality} is not a page in toc.yml ${section}`,
+        );
+      }
+      assigned.add(source);
+      return item(source);
+    });
+    return { label: `Requirements of ${label}`, items };
+  });
+  const remaining = sources.filter((source) => !assigned.has(source));
+  if (remaining.length) groups.push({ label: sectionLabel(section), items: remaining.map(item) });
+  return groups;
+}
+
+function sidebarFromToc(toc, pagesBySource, metadata = {}) {
   const sidebar = [{ label: 'Home', slug: '' }];
   for (const [section, entries] of Object.entries(toc)) {
+    if (section === 'requirements') {
+      sidebar.push(...requirementGroups(section, entries, metadata.conformance_modules, pagesBySource));
+      continue;
+    }
     const items = entries.map((entry) => {
       const source = path.posix.join(section, entry);
       const page = pagesBySource.get(source);
       return { label: page.title, slug: page.route };
     });
-    sidebar.push({ label: section[0].toUpperCase() + section.slice(1), items });
+    sidebar.push({ label: sectionLabel(section), items });
+  }
+  if (!Object.hasOwn(toc, 'requirements') && metadata.conformance_modules != null) {
+    requirementGroups('requirements', [], metadata.conformance_modules, pagesBySource);
   }
   return sidebar;
 }
@@ -1149,7 +1213,7 @@ export async function generateSite({ sourceRoot, siteRoot, base = '/', unofficia
     reference.title = page.title;
     reference.route = page.route;
   }
-  const sidebar = apiReferenceSidebar(sidebarFromToc(toc, pagesBySource), apiReferences.references, pagesBySource);
+  const sidebar = apiReferenceSidebar(sidebarFromToc(toc, pagesBySource, metadata), apiReferences.references, pagesBySource);
 
   await pruneFormerGeneratedPages(absoluteSiteRoot, loaded);
 
