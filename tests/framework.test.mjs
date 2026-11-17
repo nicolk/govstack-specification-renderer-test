@@ -385,6 +385,50 @@ test('generator rewrites routes, renders requirement semantics, copies aliases, 
   );
 });
 
+test('requirement contracts render URNs as code, http(s) as external links, and local paths below the base', async () => {
+  const { sourceRoot, siteRoot } = await fixture();
+  const servicePath = path.join(sourceRoot, 'requirements/service.md');
+  const service = await readFile(servicePath, 'utf8');
+  const extraRequirements = `  - id:
+    key: urn-contract
+    status: DRAFT
+    level: REQUIRED
+    interaction: SERVICE_API
+    contract: "govstack:spec:bb:information-mediator"
+    statement: Exchange documents through the mediator.
+  - id:
+    key: external-contract
+    status: DRAFT
+    level: REQUIRED
+    interaction: SERVICE_API
+    contract: https://example.invalid/contracts/openapi.yaml
+    statement: Use the external contract.
+---
+`;
+  const updated = service.replace(/\n---\n/, `\n${extraRequirements}`);
+  assert.notEqual(updated, service, 'fixture front matter must be extended');
+  await writeFile(servicePath, updated);
+
+  const base = '/govstack-specification-renderer-test/';
+  const manifest = await generateSite({ sourceRoot, siteRoot, base });
+
+  assert.equal(manifest.supportFiles.some((file) => file.includes('govstack:')), false);
+  const requirements = await readFile(path.join(siteRoot, 'src/content/docs/requirements/service.md'), 'utf8');
+  assert.match(
+    requirements,
+    /<dt>Contract<\/dt><dd><code>govstack:spec:bb:information-mediator<\/code><\/dd>/,
+  );
+  assert.doesNotMatch(requirements, /href="[^"]*govstack:spec:bb:information-mediator/);
+  assert.match(
+    requirements,
+    /<dt>Contract<\/dt><dd><a href="https:\/\/example\.invalid\/contracts\/openapi\.yaml"><code>https:\/\/example\.invalid\/contracts\/openapi\.yaml<\/code><\/a><\/dd>/,
+  );
+  assert.match(
+    requirements,
+    /<dt>Contract<\/dt><dd><a href="\/govstack-specification-renderer-test\/resources\/api\.yml"><code>resources\/api\.yml<\/code><\/a><\/dd>/,
+  );
+});
+
 test('functionality reading order keeps source explanations before requirement cards', async () => {
   const { sourceRoot, siteRoot } = await fixture();
   const sourcePath = path.join(sourceRoot, 'requirements/service.md');

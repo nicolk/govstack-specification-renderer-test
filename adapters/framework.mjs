@@ -465,6 +465,18 @@ function rootReference(value, pageRoutes, base) {
   return `${baseUrl(base, pathname)}${query}${fragment}`;
 }
 
+// A contract is either a document link (local path or http(s) URL) or an
+// identifier such as a URN (`govstack:spec:bb:information-mediator`). Values
+// with any other URI scheme name something rather than locate it, so they are
+// shown as code instead of becoming a broken link below the site base.
+function contractReference(value, pageRoutes, base) {
+  const contract = String(value);
+  const code = `<code>${htmlEscape(contract)}</code>`;
+  if (/^https?:/i.test(contract)) return `<a href="${htmlEscape(contract)}">${code}</a>`;
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(contract)) return code;
+  return `<a href="${htmlEscape(rootReference(contract, pageRoutes, base))}">${code}</a>`;
+}
+
 function requirementCard(requirement, index, pageRoutes, base) {
   const permanentId = requirement.id ? String(requirement.id) : 'Unnumbered draft';
   const key = requirement.key ? `<code class="requirement-key">${htmlEscape(requirement.key)}</code>` : '';
@@ -491,10 +503,7 @@ function requirementCard(requirement, index, pageRoutes, base) {
   }
   if (requirement.applies_when) rows.push(['Any of', requirement.applies_when.join(', ')]);
   if (requirement.applies_when_all) rows.push(['All of', requirement.applies_when_all.join(', ')]);
-  if (requirement.contract) {
-    const href = rootReference(requirement.contract, pageRoutes, base);
-    rows.push(['Contract', `<a href="${htmlEscape(href)}"><code>${htmlEscape(requirement.contract)}</code></a>`]);
-  }
+  if (requirement.contract) rows.push(['Contract', contractReference(requirement.contract, pageRoutes, base)]);
   if (requirement.api_operation_id) rows.push(['Operation', `<code>${htmlEscape(requirement.api_operation_id)}</code>`]);
   if (requirement.test) {
     const href = rootReference(requirement.test, pageRoutes, base);
