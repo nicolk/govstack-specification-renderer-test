@@ -329,7 +329,12 @@ test('generator rewrites routes, renders requirement semantics, copies aliases, 
   const { sourceRoot, siteRoot } = await fixture();
   const manifest = await generateSite({ sourceRoot, siteRoot, base: '/' });
 
-  assert.equal(manifest.pages.length, 4);
+  // Four source pages, plus the API overview and specification generated from resources/api.yml.
+  assert.equal(manifest.pages.length, 6);
+  assert.deepEqual(
+    manifest.pages.filter((page) => page.generated).map(({ route }) => route),
+    ['api-reference/overview', 'api-reference/specification'],
+  );
   assert.equal(manifest.requirementCount, 4);
   assert.equal(manifest.version, '9.8.7-draft');
   assert.match(manifest.sourceRevision, /^[0-9a-f]{40}$/);
