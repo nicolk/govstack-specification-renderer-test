@@ -62,6 +62,31 @@ body { font-family: var(--sl-font); }
 .api-technical-metadata { margin: 0.75rem 0 0; }
 .api-technical-metadata summary { cursor: pointer; font-size: 0.875rem; font-weight: 600; }
 .api-reference-links { font-size: 0.8125rem; }
+/* The plain-language API overview: readable prose, one card per operation. */
+.sl-markdown-content .api-overview { --api-overview-measure: 66ch; }
+.sl-markdown-content .api-overview :is(p, ul, ol, blockquote) { max-width: var(--api-overview-measure); }
+.sl-markdown-content .api-overview-intro { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.sl-markdown-content .api-overview-intro > p { margin: 0; color: var(--sl-color-gray-2); }
+.sl-markdown-content .api-overview-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.sl-markdown-content .api-overview-lead { color: var(--sl-color-white); font-size: var(--sl-text-lg); line-height: 1.5; }
+.sl-markdown-content .api-overview-operations { display: grid; gap: 1rem; max-width: calc(var(--api-overview-measure) + 2.75rem); margin-top: 1.25rem; }
+.sl-markdown-content .api-overview-operations > .api-overview-operation { margin-top: 0; }
+.api-overview-operation {
+  min-width: 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-inline-start: 3px solid var(--sl-color-accent);
+  border-radius: 0.45rem;
+  background: var(--sl-color-bg);
+  box-shadow: 0 1px 2px rgb(28 29 32 / 4%);
+}
+.sl-markdown-content .api-overview-operation > :first-child { margin-top: 0; }
+.sl-markdown-content .api-overview-operation h4 { color: var(--sl-color-white); font-size: var(--sl-text-h4); font-weight: 650; line-height: 1.45; }
+.sl-markdown-content .api-overview-operation table { display: block; max-width: 100%; overflow-x: auto; }
+:root[data-theme='dark'] .api-overview-operation { box-shadow: none; }
+@media (max-width: 50rem) {
+  .api-overview-operation { padding: 0.85rem 0.9rem; }
+}
 body:has(.native-reference-content) { --sl-content-width: 100%; }
 body:has(.native-reference-content) .main-pane { min-width: 0; }
 body:has(.native-reference-content) .content-panel:has(.api-reference-title) { padding-bottom: 0; }
