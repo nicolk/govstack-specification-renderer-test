@@ -36,22 +36,6 @@ carries an "Unofficial preview" banner and is marked `noindex, nofollow`.
   a requirements page in `toc.yml` fails generation. Without
   `conformance_modules` the sidebar is unchanged. Section labels turn hyphens
   into spaces ("Conformance modules" instead of "Conformance-modules").
-- Without `api-references.yml`, a `resources/api.yml` contract (the
-  Specification Framework location, usually a symlink to `api/openapi.yaml`)
-  enables the "API reference" chapter as one normative reference, with the same
-  safety checks (symlink inside the source, no remote `$ref`s, published
-  dependency closure, source digest). Its Scalar page is generated at
-  `/api-reference/specification/` ("API specification") instead of replacing a
-  source page, so `resources/api-reference.md` stays an ordinary prose page.
-  With `api-references.yml` the declared pages are replaced by Scalar as before.
-- A generated "API overview" page (`/api-reference/overview/`) leads the "API
-  reference" chapter in both modes. For non-technical readers it shows only the
-  API title, summary and description, then each tag with its description and
-  operations (including webhooks; untagged ones under "Other operations"), each
-  as a card with its summary and description. A trailing `---` +
-  `**Technical notes:**` part of an operation description is left out; methods,
-  paths, parameters, schemas, responses, security, servers and `x-*` extensions
-  are never shown. Operation headings are anchored by operationId (`#uploadfile`).
 - Added the [GitHub Pages preview workflow](.github/workflows/pages.yml) and this
   section.
 
