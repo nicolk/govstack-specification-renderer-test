@@ -219,7 +219,7 @@ test('absent configuration is a no-op', async (t) => {
 
   assert.deepEqual(
     await prepareApiReferences({ sourceRoot, siteRoot, snapshots }),
-    { references: [], supportFiles: [], contracts: [] },
+    { references: [], supportFiles: [] },
   );
   assert.equal(await readFile(path.join(siteRoot, 'keep.txt'), 'utf8'), 'unchanged');
   assert.deepEqual([...snapshots], [['existing', Buffer.from('snapshot')]]);
@@ -657,31 +657,12 @@ versions:
   });
 
   const apiGroup = manifest.sidebar.find((entry) => entry.label === 'API reference');
-  // The generated plain-language overview leads the chapter; the declared groups follow unchanged.
   assert.deepEqual(apiGroup.items.map(({ label }) => label), [
-    'API overview',
     'Normative draft',
     'Illustrative examples',
   ]);
-  assert.deepEqual(apiGroup.items[0], { label: 'API overview', slug: 'api-reference/overview' });
-  assert.deepEqual(apiGroup.items[1].items, [{ label: 'Core contract', slug: 'contracts/core' }]);
-  assert.deepEqual(apiGroup.items[2].items, [{ label: 'Search example', slug: 'examples/search' }]);
-  // api-references.yml mode keeps replacing the declared pages; resources/api.yml is not consulted
-  // and no generated specification page exists. Only the overview page is added.
-  assert.deepEqual(
-    manifest.pages.filter((page) => page.generated).map(({ route }) => route),
-    ['api-reference/overview'],
-  );
-  assert.deepEqual(manifest.apiReferences.map(({ id, page, route, title }) => ({ id, page, route, title })), [
-    { id: 'record-retrieve', page: 'contracts/core.md', route: 'contracts/core', title: 'Core contract' },
-    { id: 'record-search', page: 'examples/search.md', route: 'examples/search', title: 'Search example' },
-  ]);
-  assert.equal(manifest.apiReferences.some((reference) => 'generated' in reference || 'declaredContract' in reference), false);
-  await assert.rejects(access(path.join(siteRoot, 'src/content/docs/api-reference/specification.md')));
-  const overviewPage = await readFile(path.join(siteRoot, 'src/content/docs/api-reference/overview.md'), 'utf8');
-  assert.match(overviewPage, /see the <a href="\/standards\/registries\/contracts\/core\/">Core contract<\/a>/);
-  assert.match(overviewPage, /Retrieve a record/);
-  assert.equal((overviewPage.match(/^## /gm) ?? []).length, 1, 'one section for the one normative contract');
+  assert.deepEqual(apiGroup.items[0].items, [{ label: 'Core contract', slug: 'contracts/core' }]);
+  assert.deepEqual(apiGroup.items[1].items, [{ label: 'Search example', slug: 'examples/search' }]);
   assert.ok(
     manifest.sidebar.some(
       (entry) => entry.label === 'Resources'

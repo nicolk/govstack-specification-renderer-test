@@ -23,14 +23,7 @@ import YAML from 'yaml';
 
 import { robotsContent } from '../scripts/publication.mjs';
 import { isPublishableSupportPath } from '../scripts/support-paths.mjs';
-import {
-  API_OVERVIEW_ROUTE,
-  API_OVERVIEW_TITLE,
-  apiOverviewMarkdown,
-  apiReferenceMarkup,
-  apiReferenceSidebar,
-  prepareApiReferences,
-} from '../scripts/api-references.mjs';
+import { apiReferenceMarkup, apiReferenceSidebar, prepareApiReferences } from '../scripts/api-references.mjs';
 
 const execFileAsync = promisify(execFile);
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkFrontmatter, ['yaml']);
@@ -801,37 +794,6 @@ function sidebarFromToc(toc, pagesBySource, metadata = {}) {
   return sidebar;
 }
 
-// Renderer-owned API pages: the overview of the normative contracts, and the Scalar page of a
-// contract that has no source page (resources/api.yml without api-references.yml).
-function generatedApiPages(apiReferences, { base, unofficial, metadata }) {
-  const pages = [];
-  if (apiReferences.contracts?.length) {
-    const titles = apiReferences.contracts.map(({ document, reference }) => document.info?.title?.trim() || reference.title);
-    const content = `${generatedFrontmatter({
-      title: API_OVERVIEW_TITLE,
-      description: `A plain-language summary of the ${titles.join(', ')} in the ${metadata.name} specification.`,
-    }, unofficial)}${apiOverviewMarkdown(apiReferences.contracts, { base })}`;
-    pages.push({ route: API_OVERVIEW_ROUTE, title: API_OVERVIEW_TITLE, content });
-  }
-  for (const reference of apiReferences.references.filter((item) => item.generated)) {
-    pages.push({
-      route: reference.route,
-      title: reference.title,
-      content: `${generatedFrontmatter({
-        title: reference.title,
-        description: `The ${reference.label.toLowerCase()} of the ${metadata.name} API, from ${reference.declaredContract}.`,
-        apiReference: true,
-      }, unofficial)}${apiReferenceMarkup(reference)}`,
-    });
-  }
-  return pages.map((page) => {
-    const source = `${page.route}.md (generated)`;
-    const tree = parser.parse(page.content);
-    const anchors = [...new Set([...headingDetails(tree, source).map((heading) => heading.id), ...standaloneAnchors(tree)])];
-    return { ...page, source, anchors };
-  });
-}
-
 function sourceDigest(inputs) {
   const hash = createHash('sha256');
   for (const [source, contents] of [...inputs.entries()].toSorted(([left], [right]) => left.localeCompare(right))) {
@@ -1246,24 +1208,12 @@ export async function generateSite({ sourceRoot, siteRoot, base = '/', unofficia
     reservedPaths: supportFiles,
   });
   for (const reference of apiReferences.references) {
-    if (reference.generated) continue;
     const page = pagesBySource.get(reference.page);
     if (!page) throw new Error(`api-references.yml: page is not in the source navigation: ${reference.page}`);
     reference.title = page.title;
     reference.route = page.route;
   }
-  const generatedPages = generatedApiPages(apiReferences, { base: normalizedBase, unofficial, metadata });
-  for (const generated of generatedPages) {
-    const owner = loaded.find((page) => page.route === generated.route);
-    if (owner) throw new Error(`${owner.sourceName}: route ${generated.route} is reserved for the generated ${generated.title} page`);
-  }
-  const overview = generatedPages.find((page) => page.route === API_OVERVIEW_ROUTE);
-  const sidebar = apiReferenceSidebar(
-    sidebarFromToc(toc, pagesBySource, metadata),
-    apiReferences.references,
-    pagesBySource,
-    overview && { label: overview.title, slug: overview.route },
-  );
+  const sidebar = apiReferenceSidebar(sidebarFromToc(toc, pagesBySource, metadata), apiReferences.references, pagesBySource);
 
   await pruneFormerGeneratedPages(absoluteSiteRoot, loaded);
 
@@ -1287,11 +1237,6 @@ export async function generateSite({ sourceRoot, siteRoot, base = '/', unofficia
     const destination = path.join(absoluteSiteRoot, 'src/content/docs', relative);
     await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, output);
-  }
-  for (const page of generatedPages) {
-    const destination = path.join(absoluteSiteRoot, 'src/content/docs', `${page.route}.md`);
-    await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, page.content);
   }
 
   const supportIndexes = await writeSupportDirectoryIndexes(
@@ -1321,21 +1266,12 @@ export async function generateSite({ sourceRoot, siteRoot, base = '/', unofficia
     redirects,
     warnings: [...new Set(warnings)],
     ...sourceState,
-    pages: [
-      ...loaded.map((page) => ({
-        source: page.sourceName,
-        route: page.route,
-        title: page.title,
-        anchors: [...page.anchors].map((id) => ({ id })),
-      })),
-      ...generatedPages.map((page) => ({
-        source: page.source,
-        route: page.route,
-        title: page.title,
-        generated: true,
-        anchors: page.anchors.map((id) => ({ id })),
-      })),
-    ],
+    pages: loaded.map((page) => ({
+      source: page.sourceName,
+      route: page.route,
+      title: page.title,
+      anchors: [...page.anchors].map((id) => ({ id })),
+    })),
   };
   const manifestPath = path.join(absoluteSiteRoot, 'src/data/generated/spec.json');
   await mkdir(path.dirname(manifestPath), { recursive: true });
