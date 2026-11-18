@@ -717,79 +717,67 @@ function transformBody({ page, pageRoutes, pageAnchors, base, metadata, authors,
   return `${generatedFrontmatter({ title, description, pagefind: isArchive ? false : undefined }, unofficial)}${body}`;
 }
 
-function sectionLabel(section) {
-  const label = section.replaceAll('-', ' ');
-  return label[0].toUpperCase() + label.slice(1);
-}
-
 const CONFORMANCE_MODULE_KINDS = { CORE: 'core', EXTENSION: 'extension' };
 
-// Requirement navigation follows metadata.yml `conformance_modules`: one group
-// per module in metadata order, items in `functionalities` order. A page that
-// several modules list appears under each; toc requirement pages that no
-// module lists stay in a trailing "Requirements" group.
-function requirementGroups(section, entries, conformanceModules, pagesBySource) {
-  const item = (source) => {
-    const page = pagesBySource.get(source);
-    return { label: page.title, slug: page.route };
-  };
-  const sources = entries.map((entry) => path.posix.join(section, entry));
-  if (conformanceModules === undefined || conformanceModules === null) {
-    return [{ label: sectionLabel(section), items: sources.map(item) }];
-  }
+// Requirement navigation follows metadata.yml `conformance_modules`: one sub-group per module,
+// in metadata order, holding the module page and then its functionalities in metadata order.
+// Starlight group labels are not links, so the module page is the sub-group's first item.
+// Core modules start expanded and extensions collapsed; Starlight still opens a collapsed
+// group that holds the current page.
+function conformanceModuleGroups(toc, pagesBySource, conformanceModules) {
+  if (conformanceModules === undefined || conformanceModules === null) return undefined;
   if (!Array.isArray(conformanceModules)) throw new Error('metadata.yml: conformance_modules must be a list');
-  const listed = new Set(sources);
-  const assigned = new Set();
+  if (!Array.isArray(toc.requirements)) throw new Error('toc.yml: conformance_modules require a requirements section');
+  const listed = new Set(Object.entries(toc).flatMap(([section, entries]) => entries.map((entry) => path.posix.join(section, entry))));
+  const requirementPages = new Set(toc.requirements.map((entry) => path.posix.join('requirements', entry)));
+  const item = (source) => ({ label: pagesBySource.get(source).title, slug: pagesBySource.get(source).route });
+  const placed = new Set();
   const groups = conformanceModules.map((module, index) => {
     const name = module?.id ?? `#${index + 1}`;
-    if (!Array.isArray(module?.functionalities)) {
+    const kind = CONFORMANCE_MODULE_KINDS[module?.type];
+    if (!kind) throw new Error(`metadata.yml: conformance module ${name} type must be CORE or EXTENSION`);
+    if (!Array.isArray(module.functionalities)) {
       throw new Error(`metadata.yml: conformance module ${name} requires a functionalities list`);
     }
+    const items = [];
     let label;
     if (module.page) {
-      const page = pagesBySource.get(module.page);
-      if (!page) throw new Error(`metadata.yml: conformance module ${name} page ${module.page} is not listed in toc.yml`);
-      label = page.title;
+      if (!listed.has(module.page)) throw new Error(`metadata.yml: conformance module ${name} page ${module.page} is not listed in toc.yml`);
+      label = pagesBySource.get(module.page).title;
+      items.push(item(module.page));
+      placed.add(module.page);
     } else {
-      const kind = CONFORMANCE_MODULE_KINDS[module.type];
-      if (!module.title || !kind) {
-        throw new Error(`metadata.yml: conformance module ${name} without a page requires a title and type CORE or EXTENSION`);
-      }
+      if (!module.title) throw new Error(`metadata.yml: conformance module ${name} without a page requires a title`);
       label = `${module.title} ${kind}`;
     }
-    const items = module.functionalities.map((functionality) => {
-      const source = path.posix.join(section, String(functionality));
-      if (!listed.has(source)) {
-        throw new Error(
-          `metadata.yml: conformance module ${name} functionality ${functionality} is not a page in toc.yml ${section}`,
-        );
+    for (const functionality of module.functionalities) {
+      const source = path.posix.join('requirements', String(functionality));
+      if (!requirementPages.has(source)) {
+        throw new Error(`metadata.yml: conformance module ${name} functionality ${functionality} is not listed in toc.yml requirements`);
       }
-      assigned.add(source);
-      return item(source);
-    });
-    return { label: `Requirements of ${label}`, items };
+      items.push(item(source));
+      placed.add(source);
+    }
+    return { label, collapsed: module.type === 'EXTENSION', items };
   });
-  const remaining = sources.filter((source) => !assigned.has(source));
-  if (remaining.length) groups.push({ label: sectionLabel(section), items: remaining.map(item) });
-  return groups;
+  return { groups, placed };
 }
 
 function sidebarFromToc(toc, pagesBySource, metadata = {}) {
   const sidebar = [{ label: 'Home', slug: '' }];
+  const modules = conformanceModuleGroups(toc, pagesBySource, metadata.conformance_modules);
   for (const [section, entries] of Object.entries(toc)) {
-    if (section === 'requirements') {
-      sidebar.push(...requirementGroups(section, entries, metadata.conformance_modules, pagesBySource));
-      continue;
-    }
-    const items = entries.map((entry) => {
-      const source = path.posix.join(section, entry);
-      const page = pagesBySource.get(source);
-      return { label: page.title, slug: page.route };
-    });
-    sidebar.push({ label: sectionLabel(section), items });
-  }
-  if (!Object.hasOwn(toc, 'requirements') && metadata.conformance_modules != null) {
-    requirementGroups('requirements', [], metadata.conformance_modules, pagesBySource);
+    const items = entries
+      .map((entry) => path.posix.join(section, entry))
+      .filter((source) => !modules?.placed.has(source))
+      .map((source) => {
+        const page = pagesBySource.get(source);
+        return { label: page.title, slug: page.route };
+      });
+    const label = section[0].toUpperCase() + section.slice(1);
+    if (modules && section === 'requirements') sidebar.push({ label, items: [...modules.groups, ...items] });
+    // A section whose pages all moved under Requirements (conformance-modules) disappears.
+    else if (items.length || items.length === entries.length) sidebar.push({ label, items });
   }
   return sidebar;
 }
@@ -1213,7 +1201,13 @@ export async function generateSite({ sourceRoot, siteRoot, base = '/', unofficia
     reference.title = page.title;
     reference.route = page.route;
   }
-  const sidebar = apiReferenceSidebar(sidebarFromToc(toc, pagesBySource, metadata), apiReferences.references, pagesBySource);
+  const sidebar = apiReferenceSidebar(
+    sidebarFromToc(toc, pagesBySource, metadata),
+    apiReferences.references,
+    pagesBySource,
+    // With conformance modules the requirements are the core of the menu; the API chapter follows them.
+    metadata.conformance_modules ? { after: 'Requirements' } : {},
+  );
 
   await pruneFormerGeneratedPages(absoluteSiteRoot, loaded);
 

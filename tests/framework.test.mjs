@@ -433,8 +433,6 @@ const MODULE_METADATA = `name: Module fixture
 abstract: A fixture specification with conformance modules.
 url: https://example.invalid/modules/
 repository: https://github.com/example/modules
-urn: govstack:spec:bb:modules
-owner_group: govstack:wg:modules
 versions:
   - version: 1.0.0-draft
     release_date:
@@ -443,19 +441,19 @@ versions:
 `;
 
 const MODULES = `conformance_modules:
-  - id: core
-    title: Core Storage
+  - id: storage
+    title: Storage
     type: CORE
-    page: conformance-modules/core.md
+    page: conformance-modules/storage.md
     functionalities:
-      - storage.md
+      - store.md
       - search.md
   - id: archive
     title: Archive
     type: EXTENSION
     page: conformance-modules/archive.md
     functionalities:
-      - retention.md
+      - retain.md
       - search.md
   - id: exchange
     title: Exchange
@@ -464,68 +462,46 @@ const MODULES = `conformance_modules:
       - exchange.md
 `;
 
-async function moduleFixture({ metadata = `${MODULE_METADATA}${MODULES}`, apiReference = false } = {}) {
+async function moduleFixture({ metadata = `${MODULE_METADATA}${MODULES}`, conformancePages = ['storage.md', 'archive.md'], apiReference = false } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'conformance-modules-'));
   const sourceRoot = path.join(root, 'source');
   const siteRoot = path.join(root, 'site');
-  await write(sourceRoot, 'toc.yml', `toc:
-  introduction:
-    - purpose.md
-  conformance-modules:
-    - core.md
-    - archive.md
-  requirements:
-    - storage.md
-    - search.md
-    - unassigned.md
-    - retention.md
-    - exchange.md
-  resources:
-    - api-reference.md
-`);
+  await write(sourceRoot, 'toc.yml', YAML.stringify({ toc: {
+    introduction: ['purpose.md'],
+    'conformance-modules': conformancePages,
+    requirements: ['store.md', 'search.md', 'unassigned.md', 'retain.md', 'exchange.md'],
+    resources: ['contract.md', 'guide.md'],
+  } }));
   await write(sourceRoot, 'metadata.yml', metadata);
   await write(sourceRoot, 'authors.yml', 'authors:\n  - name: Example Author\n    roles: [Author]\n');
   await write(sourceRoot, 'README.md', '# Module fixture\n\nIntroduction.\n');
   await write(sourceRoot, 'introduction/purpose.md', '# Purpose\n\nWhy.\n');
-  await write(sourceRoot, 'conformance-modules/core.md', '---\ntitle: Core Storage core\n---\n\n# Core Storage core\n\nCore.\n');
+  await write(sourceRoot, 'conformance-modules/storage.md', '---\ntitle: Storage core\n---\n\n# Storage core\n\nCore.\n');
   await write(sourceRoot, 'conformance-modules/archive.md', '# Archive extension\n\nArchive.\n');
+  await write(sourceRoot, 'conformance-modules/overview.md', '# Module overview\n\nAll modules.\n');
   for (const [name, title] of [
-    ['storage', 'Store documents'],
+    ['store', 'Store documents'],
     ['search', 'Search documents'],
     ['unassigned', 'Unassigned functionality'],
-    ['retention', 'Retain records'],
+    ['retain', 'Retain records'],
     ['exchange', 'Exchange documents'],
   ]) {
     await write(sourceRoot, `requirements/${name}.md`, `---\ntitle: ${title}\n---\n\n# ${title}\n\nText.\n`);
   }
-  await write(sourceRoot, 'resources/api-reference.md', '# API reference page\n\nContract.\n');
+  await write(sourceRoot, 'resources/contract.md', '# Contract\n\nNormative contract.\n');
+  await write(sourceRoot, 'resources/guide.md', '# Guide\n\nGuidance.\n');
   if (apiReference) {
     await write(sourceRoot, 'api-references.yml', `references:
-  - id: retrieve
-    page: resources/api-reference.md
+  - id: contract
+    page: resources/contract.md
     contract: api/openapi.yaml
     role: normative
-    operationId: retrieveDocument
-    response: '200'
 `);
     await write(sourceRoot, 'api/openapi.yaml', `openapi: 3.1.2
 info:
   title: Module fixture
   version: 1.0.0
-paths:
-  /documents/{id}:
-    get:
-      operationId: retrieveDocument
-      summary: Retrieve a document
-      responses:
-        '200':
-          description: The document.
-          content:
-            application/json:
-              schema:
-                type: object
-              example:
-                id: document-1
+paths: {}
 `);
   }
   await execFileAsync('git', ['init', '-q', root]);
@@ -534,85 +510,120 @@ paths:
   return { sourceRoot, siteRoot };
 }
 
-const sidebarLabels = (sidebar) => sidebar.map(({ label }) => label);
-const itemSlugs = (sidebar, label) => sidebar.find((entry) => entry.label === label).items.map(({ slug }) => slug);
+const link = (label, slug) => ({ label, slug });
+const UPSTREAM_REQUIREMENTS = {
+  label: 'Requirements',
+  items: [
+    link('Store documents', 'requirements/store'),
+    link('Search documents', 'requirements/search'),
+    link('Unassigned functionality', 'requirements/unassigned'),
+    link('Retain records', 'requirements/retain'),
+    link('Exchange documents', 'requirements/exchange'),
+  ],
+};
 
-test('sidebar groups requirements by conformance module in metadata order', async () => {
+test('requirements navigation nests one sub-group per conformance module', async () => {
   const { sourceRoot, siteRoot } = await moduleFixture();
   const manifest = await generateSite({ sourceRoot, siteRoot, base: '/' });
 
-  assert.deepEqual(sidebarLabels(manifest.sidebar), [
-    'Home',
-    'Introduction',
-    'Conformance modules',
-    'Requirements of Core Storage core',
-    'Requirements of Archive extension',
-    'Requirements of Exchange extension',
-    'Requirements',
-    'Resources',
+  assert.deepEqual(manifest.sidebar, [
+    { label: 'Home', slug: '' },
+    { label: 'Introduction', items: [link('Purpose', 'introduction/purpose')] },
+    {
+      label: 'Requirements',
+      items: [
+        {
+          label: 'Storage core',
+          collapsed: false,
+          items: [
+            link('Storage core', 'conformance-modules/storage'),
+            link('Store documents', 'requirements/store'),
+            link('Search documents', 'requirements/search'),
+          ],
+        },
+        {
+          label: 'Archive extension',
+          collapsed: true,
+          items: [
+            link('Archive extension', 'conformance-modules/archive'),
+            link('Retain records', 'requirements/retain'),
+            link('Search documents', 'requirements/search'),
+          ],
+        },
+        { label: 'Exchange extension', collapsed: true, items: [link('Exchange documents', 'requirements/exchange')] },
+        link('Unassigned functionality', 'requirements/unassigned'),
+      ],
+    },
+    { label: 'Resources', items: [link('Contract', 'resources/contract'), link('Guide', 'resources/guide')] },
   ]);
-  assert.deepEqual(itemSlugs(manifest.sidebar, 'Requirements of Core Storage core'), [
-    'requirements/storage',
-    'requirements/search',
-  ]);
-  assert.deepEqual(itemSlugs(manifest.sidebar, 'Requirements of Archive extension'), [
-    'requirements/retention',
-    'requirements/search',
-  ]);
-  assert.deepEqual(itemSlugs(manifest.sidebar, 'Requirements of Exchange extension'), ['requirements/exchange']);
-  assert.deepEqual(itemSlugs(manifest.sidebar, 'Requirements'), ['requirements/unassigned']);
   assert.deepEqual(
-    manifest.pages.filter(({ source }) => source.startsWith('requirements/')).map(({ route }) => route),
+    manifest.pages.map(({ route }) => route),
     [
-      'requirements/storage',
+      '',
+      'introduction/purpose',
+      'conformance-modules/storage',
+      'conformance-modules/archive',
+      'requirements/store',
       'requirements/search',
       'requirements/unassigned',
-      'requirements/retention',
+      'requirements/retain',
       'requirements/exchange',
+      'resources/contract',
+      'resources/guide',
     ],
+    'page routes do not change',
   );
 });
 
-test('the API reference group stays between conformance modules and module requirement groups', async () => {
-  const { sourceRoot, siteRoot } = await moduleFixture({ apiReference: true });
+test('unnamed conformance-module pages stay in their group and the API chapter follows Requirements', async () => {
+  const { sourceRoot, siteRoot } = await moduleFixture({
+    conformancePages: ['overview.md', 'storage.md', 'archive.md'],
+    apiReference: true,
+  });
   const manifest = await generateSite({ sourceRoot, siteRoot, base: '/' });
 
-  assert.deepEqual(sidebarLabels(manifest.sidebar).slice(0, 5), [
+  assert.deepEqual(manifest.sidebar.map(({ label }) => label), [
     'Home',
     'Introduction',
-    'Conformance modules',
+    'Conformance-modules',
+    'Requirements',
     'API reference',
-    'Requirements of Core Storage core',
+    'Resources',
   ]);
+  assert.deepEqual(manifest.sidebar[2].items, [link('Module overview', 'conformance-modules/overview')]);
+  assert.deepEqual(manifest.sidebar[4].items, [{ label: 'Normative draft', items: [link('Contract', 'resources/contract')] }]);
+  assert.deepEqual(manifest.sidebar[5].items, [link('Guide', 'resources/guide')]);
 });
 
-test('a conformance module functionality missing from toc.yml fails generation', async () => {
-  const { sourceRoot, siteRoot } = await moduleFixture({
+test('conformance module functionalities and pages must be listed in toc.yml', async () => {
+  const missingFunctionality = await moduleFixture({
     metadata: `${MODULE_METADATA}${MODULES.replace('      - exchange.md', '      - exchange.md\n      - missing.md')}`,
   });
   await assert.rejects(
-    generateSite({ sourceRoot, siteRoot, base: '/' }),
-    /^Error: metadata\.yml: conformance module exchange functionality missing\.md is not a page in toc\.yml requirements$/,
+    generateSite({ ...missingFunctionality, base: '/' }),
+    /^Error: metadata\.yml: conformance module exchange functionality missing\.md is not listed in toc\.yml requirements$/,
+  );
+  const missingPage = await moduleFixture({ conformancePages: ['storage.md'] });
+  await assert.rejects(
+    generateSite({ ...missingPage, base: '/' }),
+    /^Error: metadata\.yml: conformance module archive page conformance-modules\/archive\.md is not listed in toc\.yml$/,
   );
 });
 
-test('without conformance modules the sidebar keeps one Requirements group in toc order', async () => {
-  const { sourceRoot, siteRoot } = await moduleFixture({ metadata: MODULE_METADATA });
+test('without conformance modules the sidebar keeps the upstream shape', async () => {
+  const { sourceRoot, siteRoot } = await moduleFixture({ metadata: MODULE_METADATA, apiReference: true });
   const manifest = await generateSite({ sourceRoot, siteRoot, base: '/' });
 
-  assert.deepEqual(sidebarLabels(manifest.sidebar), [
-    'Home',
-    'Introduction',
-    'Conformance modules',
-    'Requirements',
-    'Resources',
-  ]);
-  assert.deepEqual(itemSlugs(manifest.sidebar, 'Requirements'), [
-    'requirements/storage',
-    'requirements/search',
-    'requirements/unassigned',
-    'requirements/retention',
-    'requirements/exchange',
+  assert.deepEqual(manifest.sidebar, [
+    { label: 'Home', slug: '' },
+    { label: 'Introduction', items: [link('Purpose', 'introduction/purpose')] },
+    {
+      label: 'Conformance-modules',
+      items: [link('Storage core', 'conformance-modules/storage'), link('Archive extension', 'conformance-modules/archive')],
+    },
+    { label: 'API reference', items: [{ label: 'Normative draft', items: [link('Contract', 'resources/contract')] }] },
+    UPSTREAM_REQUIREMENTS,
+    { label: 'Resources', items: [link('Guide', 'resources/guide')] },
   ]);
 });
 
