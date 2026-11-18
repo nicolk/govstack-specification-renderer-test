@@ -38,6 +38,9 @@ carries an "Unofficial preview" banner and is marked `noindex, nofollow`.
   from `toc.yml` fails generation, and the "API reference" chapter follows
   "Requirements". Routes, `toc.yml` and the menu without `conformance_modules`
   are unchanged.
+- In the Scalar API reference every tag starts collapsed, the first one ("Health"
+  in bb-file-management) included (`defaultOpenFirstTag: false`); a link to an
+  operation still opens its tag.
 - Added the [GitHub Pages preview workflow](.github/workflows/pages.yml) and this
   section.
 
