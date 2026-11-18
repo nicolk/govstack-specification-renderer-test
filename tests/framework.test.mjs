@@ -511,6 +511,8 @@ paths: {}
 }
 
 const link = (label, slug) => ({ label, slug });
+// The module page leads its sub-group; the sidebar component shows it as the group label's link.
+const groupPage = (label, slug) => ({ label, slug, attrs: { 'data-sidebar-group-page': true } });
 const UPSTREAM_REQUIREMENTS = {
   label: 'Requirements',
   items: [
@@ -536,7 +538,7 @@ test('requirements navigation nests one sub-group per conformance module', async
           label: 'Storage core',
           collapsed: false,
           items: [
-            link('Storage core', 'conformance-modules/storage'),
+            groupPage('Storage core', 'conformance-modules/storage'),
             link('Store documents', 'requirements/store'),
             link('Search documents', 'requirements/search'),
           ],
@@ -545,7 +547,7 @@ test('requirements navigation nests one sub-group per conformance module', async
           label: 'Archive extension',
           collapsed: true,
           items: [
-            link('Archive extension', 'conformance-modules/archive'),
+            groupPage('Archive extension', 'conformance-modules/archive'),
             link('Retain records', 'requirements/retain'),
             link('Search documents', 'requirements/search'),
           ],

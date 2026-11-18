@@ -30,9 +30,12 @@ carries an "Unofficial preview" banner and is marked `noindex, nofollow`.
   [nicolk/bb-file-management-preview](https://github.com/nicolk/bb-file-management-preview).
 - With `conformance_modules` in `metadata.yml`, the "Requirements" menu group
   holds one sub-group per module, in metadata order, labelled with the module
-  page's title. Each sub-group lists the module page first (Starlight group
-  labels are not links) and then its `functionalities` in order. Core modules
-  start expanded and extensions collapsed. Module pages leave the
+  page's title. The label links to the module page (a `Sidebar` component
+  override, since Starlight group labels are not links); the sub-group lists
+  its `functionalities` in order and the caret toggles it without navigating.
+  Core modules start expanded and extensions collapsed; a group that holds the
+  current page is always open, even after the reader collapsed it earlier in
+  the session. Module pages leave the
   "Conformance-modules" group, which disappears once empty; requirement pages
   no module names follow the sub-groups. A module page or functionality missing
   from `toc.yml` fails generation, and the "API reference" chapter follows

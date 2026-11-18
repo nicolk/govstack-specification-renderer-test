@@ -29,6 +29,7 @@ export default defineConfig({
       customCss: ['@fontsource/inter/400.css', '@fontsource/inter/500.css', '@fontsource/inter/600.css', '@fontsource/inter/700.css', './src/styles/govstack.css'],
       components: {
         Header: './src/components/GuideHeader.astro',
+        Sidebar: './src/components/GuideSidebar.astro',
         ThemeProvider: './src/components/GuideThemeProvider.astro',
         Banner: './src/components/PublicationBanner.astro',
         Footer: './src/components/PublicationFooter.astro',
