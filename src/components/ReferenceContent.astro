@@ -42,6 +42,8 @@ const isReference = publication.apiReferences?.some((reference: { route: string 
         const mount = () => scalar.createApiReference(host, {
           content,
           showSidebar: false,
+          // Every tag starts collapsed, the first ("Health") included; a deep link still opens its tag.
+          defaultOpenFirstTag: false,
           hideSearch: true,
           withDefaultFonts: false,
           hideClientButton: true,
