@@ -429,6 +429,204 @@ test('requirement contracts render URNs as code, http(s) as external links, and 
   );
 });
 
+const MODULE_METADATA = `name: Module fixture
+abstract: A fixture specification with conformance modules.
+url: https://example.invalid/modules/
+repository: https://github.com/example/modules
+versions:
+  - version: 1.0.0-draft
+    release_date:
+    short_description: Fixture draft.
+    latest: true
+`;
+
+const MODULES = `conformance_modules:
+  - id: storage
+    title: Storage
+    type: CORE
+    page: conformance-modules/storage.md
+    functionalities:
+      - store.md
+      - search.md
+  - id: archive
+    title: Archive
+    type: EXTENSION
+    page: conformance-modules/archive.md
+    functionalities:
+      - retain.md
+      - search.md
+  - id: exchange
+    title: Exchange
+    type: EXTENSION
+    functionalities:
+      - exchange.md
+`;
+
+async function moduleFixture({ metadata = `${MODULE_METADATA}${MODULES}`, conformancePages = ['storage.md', 'archive.md'], apiReference = false } = {}) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'conformance-modules-'));
+  const sourceRoot = path.join(root, 'source');
+  const siteRoot = path.join(root, 'site');
+  await write(sourceRoot, 'toc.yml', YAML.stringify({ toc: {
+    introduction: ['purpose.md'],
+    'conformance-modules': conformancePages,
+    requirements: ['store.md', 'search.md', 'unassigned.md', 'retain.md', 'exchange.md'],
+    resources: ['contract.md', 'guide.md'],
+  } }));
+  await write(sourceRoot, 'metadata.yml', metadata);
+  await write(sourceRoot, 'authors.yml', 'authors:\n  - name: Example Author\n    roles: [Author]\n');
+  await write(sourceRoot, 'README.md', '# Module fixture\n\nIntroduction.\n');
+  await write(sourceRoot, 'introduction/purpose.md', '# Purpose\n\nWhy.\n');
+  await write(sourceRoot, 'conformance-modules/storage.md', '---\ntitle: Storage core\n---\n\n# Storage core\n\nCore.\n');
+  await write(sourceRoot, 'conformance-modules/archive.md', '# Archive extension\n\nArchive.\n');
+  await write(sourceRoot, 'conformance-modules/overview.md', '# Module overview\n\nAll modules.\n');
+  for (const [name, title] of [
+    ['store', 'Store documents'],
+    ['search', 'Search documents'],
+    ['unassigned', 'Unassigned functionality'],
+    ['retain', 'Retain records'],
+    ['exchange', 'Exchange documents'],
+  ]) {
+    await write(sourceRoot, `requirements/${name}.md`, `---\ntitle: ${title}\n---\n\n# ${title}\n\nText.\n`);
+  }
+  await write(sourceRoot, 'resources/contract.md', '# Contract\n\nNormative contract.\n');
+  await write(sourceRoot, 'resources/guide.md', '# Guide\n\nGuidance.\n');
+  if (apiReference) {
+    await write(sourceRoot, 'api-references.yml', `references:
+  - id: contract
+    page: resources/contract.md
+    contract: api/openapi.yaml
+    role: normative
+`);
+    await write(sourceRoot, 'api/openapi.yaml', `openapi: 3.1.2
+info:
+  title: Module fixture
+  version: 1.0.0
+paths: {}
+`);
+  }
+  await execFileAsync('git', ['init', '-q', root]);
+  await execFileAsync('git', ['-C', root, 'add', 'source']);
+  await execFileAsync('git', ['-C', root, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']);
+  return { sourceRoot, siteRoot };
+}
+
+const link = (label, slug) => ({ label, slug });
+const UPSTREAM_REQUIREMENTS = {
+  label: 'Requirements',
+  items: [
+    link('Store documents', 'requirements/store'),
+    link('Search documents', 'requirements/search'),
+    link('Unassigned functionality', 'requirements/unassigned'),
+    link('Retain records', 'requirements/retain'),
+    link('Exchange documents', 'requirements/exchange'),
+  ],
+};
+
+test('requirements navigation nests one sub-group per conformance module', async () => {
+  const { sourceRoot, siteRoot } = await moduleFixture();
+  const manifest = await generateSite({ sourceRoot, siteRoot, base: '/' });
+
+  assert.deepEqual(manifest.sidebar, [
+    { label: 'Home', slug: '' },
+    { label: 'Introduction', items: [link('Purpose', 'introduction/purpose')] },
+    {
+      label: 'Requirements',
+      items: [
+        {
+          label: 'Storage core',
+          collapsed: false,
+          items: [
+            link('Storage core', 'conformance-modules/storage'),
+            link('Store documents', 'requirements/store'),
+            link('Search documents', 'requirements/search'),
+          ],
+        },
+        {
+          label: 'Archive extension',
+          collapsed: true,
+          items: [
+            link('Archive extension', 'conformance-modules/archive'),
+            link('Retain records', 'requirements/retain'),
+            link('Search documents', 'requirements/search'),
+          ],
+        },
+        { label: 'Exchange extension', collapsed: true, items: [link('Exchange documents', 'requirements/exchange')] },
+        link('Unassigned functionality', 'requirements/unassigned'),
+      ],
+    },
+    { label: 'Resources', items: [link('Contract', 'resources/contract'), link('Guide', 'resources/guide')] },
+  ]);
+  assert.deepEqual(
+    manifest.pages.map(({ route }) => route),
+    [
+      '',
+      'introduction/purpose',
+      'conformance-modules/storage',
+      'conformance-modules/archive',
+      'requirements/store',
+      'requirements/search',
+      'requirements/unassigned',
+      'requirements/retain',
+      'requirements/exchange',
+      'resources/contract',
+      'resources/guide',
+    ],
+    'page routes do not change',
+  );
+});
+
+test('unnamed conformance-module pages stay in their group and the API chapter follows Requirements', async () => {
+  const { sourceRoot, siteRoot } = await moduleFixture({
+    conformancePages: ['overview.md', 'storage.md', 'archive.md'],
+    apiReference: true,
+  });
+  const manifest = await generateSite({ sourceRoot, siteRoot, base: '/' });
+
+  assert.deepEqual(manifest.sidebar.map(({ label }) => label), [
+    'Home',
+    'Introduction',
+    'Conformance-modules',
+    'Requirements',
+    'API reference',
+    'Resources',
+  ]);
+  assert.deepEqual(manifest.sidebar[2].items, [link('Module overview', 'conformance-modules/overview')]);
+  assert.deepEqual(manifest.sidebar[4].items, [{ label: 'Normative draft', items: [link('Contract', 'resources/contract')] }]);
+  assert.deepEqual(manifest.sidebar[5].items, [link('Guide', 'resources/guide')]);
+});
+
+test('conformance module functionalities and pages must be listed in toc.yml', async () => {
+  const missingFunctionality = await moduleFixture({
+    metadata: `${MODULE_METADATA}${MODULES.replace('      - exchange.md', '      - exchange.md\n      - missing.md')}`,
+  });
+  await assert.rejects(
+    generateSite({ ...missingFunctionality, base: '/' }),
+    /^Error: metadata\.yml: conformance module exchange functionality missing\.md is not listed in toc\.yml requirements$/,
+  );
+  const missingPage = await moduleFixture({ conformancePages: ['storage.md'] });
+  await assert.rejects(
+    generateSite({ ...missingPage, base: '/' }),
+    /^Error: metadata\.yml: conformance module archive page conformance-modules\/archive\.md is not listed in toc\.yml$/,
+  );
+});
+
+test('without conformance modules the sidebar keeps the upstream shape', async () => {
+  const { sourceRoot, siteRoot } = await moduleFixture({ metadata: MODULE_METADATA, apiReference: true });
+  const manifest = await generateSite({ sourceRoot, siteRoot, base: '/' });
+
+  assert.deepEqual(manifest.sidebar, [
+    { label: 'Home', slug: '' },
+    { label: 'Introduction', items: [link('Purpose', 'introduction/purpose')] },
+    {
+      label: 'Conformance-modules',
+      items: [link('Storage core', 'conformance-modules/storage'), link('Archive extension', 'conformance-modules/archive')],
+    },
+    { label: 'API reference', items: [{ label: 'Normative draft', items: [link('Contract', 'resources/contract')] }] },
+    UPSTREAM_REQUIREMENTS,
+    { label: 'Resources', items: [link('Guide', 'resources/guide')] },
+  ]);
+});
+
 test('functionality reading order keeps source explanations before requirement cards', async () => {
   const { sourceRoot, siteRoot } = await fixture();
   const sourcePath = path.join(sourceRoot, 'requirements/service.md');

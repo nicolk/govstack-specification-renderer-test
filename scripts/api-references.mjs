@@ -213,7 +213,7 @@ export function apiReferenceMarkup(reference) {
 </section>\n`;
 }
 
-export function apiReferenceSidebar(sidebar, references, pagesBySource) {
+export function apiReferenceSidebar(sidebar, references, pagesBySource, { after } = {}) {
   if (!references.length) return sidebar;
   const sources = new Set(references.map((reference) => reference.page));
   function retain(items) {
@@ -227,6 +227,8 @@ export function apiReferenceSidebar(sidebar, references, pagesBySource) {
     const items = references.filter((reference) => reference.role === role).map((reference) => ({ label: pagesBySource.get(reference.page).title, slug: pagesBySource.get(reference.page).route }));
     return items.length ? [{ label: role === 'normative' ? 'Normative draft' : 'Illustrative examples', items }] : [];
   });
-  navigation.splice(Math.min(3, navigation.length), 0, { label: 'API reference', items: groups });
+  // Upstream position: index 3. `after` names a top-level group the chapter should follow instead.
+  const anchor = after ? navigation.findIndex((entry) => entry.items && entry.label === after) : -1;
+  navigation.splice(anchor >= 0 ? anchor + 1 : Math.min(3, navigation.length), 0, { label: 'API reference', items: groups });
   return navigation;
 }

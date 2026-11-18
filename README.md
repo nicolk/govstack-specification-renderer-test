@@ -28,6 +28,16 @@ carries an "Unofficial preview" banner and is marked `noindex, nofollow`.
   are external links and local paths are linked as before. This replaces the
   `sed` workaround used by
   [nicolk/bb-file-management-preview](https://github.com/nicolk/bb-file-management-preview).
+- With `conformance_modules` in `metadata.yml`, the "Requirements" menu group
+  holds one sub-group per module, in metadata order, labelled with the module
+  page's title. Each sub-group lists the module page first (Starlight group
+  labels are not links) and then its `functionalities` in order. Core modules
+  start expanded and extensions collapsed. Module pages leave the
+  "Conformance-modules" group, which disappears once empty; requirement pages
+  no module names follow the sub-groups. A module page or functionality missing
+  from `toc.yml` fails generation, and the "API reference" chapter follows
+  "Requirements". Routes, `toc.yml` and the menu without `conformance_modules`
+  are unchanged.
 - Added the [GitHub Pages preview workflow](.github/workflows/pages.yml) and this
   section.
 
