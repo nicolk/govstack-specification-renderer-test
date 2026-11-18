@@ -1,0 +1,186 @@
+---
+/*
+  Starlight 0.42 SidebarSublist, with two changes:
+
+  - A group whose first link carries `data-sidebar-group-page` (a conformance module page) shows
+    that page as the group label's link, and not again as an item. The caret still toggles the
+    group without navigating. The page stays in the sidebar data, so prev/next keep their order.
+  - A group that holds the current page is always open. Its state restore point is kept inert
+    (inside <template>) so a collapse stored earlier in the session cannot close it; the running
+    restore index stays the same on every page.
+*/
+import type { StarlightRouteData } from '@astrojs/starlight/route-data';
+import SidebarRestorePoint from '@astrojs/starlight/components/SidebarRestorePoint.astro';
+import { Badge, Icon } from '@astrojs/starlight/components';
+
+type SidebarEntry = StarlightRouteData['sidebar'][number];
+type SidebarLink = Extract<SidebarEntry, { type: 'link' }>;
+type SidebarGroup = Extract<SidebarEntry, { type: 'group' }>;
+
+interface Props {
+	sublist: SidebarEntry[];
+	nested?: boolean;
+}
+
+const GROUP_PAGE = 'data-sidebar-group-page';
+const { sublist, nested } = Astro.props;
+
+const hasCurrent = (group: SidebarGroup): boolean =>
+	group.entries.some((entry) => (entry.type === 'link' ? entry.isCurrent : hasCurrent(entry)));
+const groupPage = (group: SidebarGroup): SidebarLink | undefined => {
+	const [first] = group.entries;
+	return first?.type === 'link' && first.attrs[GROUP_PAGE] ? first : undefined;
+};
+const linkAttrs = ({ [GROUP_PAGE]: _, ...attrs }: SidebarLink['attrs']) => attrs;
+---
+
+<ul class:list={{ 'top-level': !nested }}>
+	{
+		sublist.map((entry) => {
+			if (entry.type === 'link') {
+				const { class: className, ...attrs } = linkAttrs(entry.attrs);
+				return (
+					<li>
+						<a
+							href={entry.href}
+							aria-current={entry.isCurrent ? 'page' : undefined}
+							class:list={[{ large: !nested }, className]}
+							{...attrs}
+						>
+							<span>{entry.label}</span>
+							{entry.badge && <Badge variant={entry.badge.variant} class={entry.badge.class} text={entry.badge.text} />}
+						</a>
+					</li>
+				);
+			}
+			const page = groupPage(entry);
+			const current = hasCurrent(entry);
+			return (
+				<li>
+					<details open={current || !entry.collapsed} class:list={{ 'has-group-page': page }}>
+						<summary>
+							<span class="group-label">
+								{page ? (
+									<a
+										class="large group-page"
+										href={page.href}
+										aria-current={page.isCurrent ? 'page' : undefined}
+									>
+										{entry.label}
+									</a>
+								) : (
+									<span class="large">{entry.label}</span>
+								)}
+								{entry.badge && <Badge variant={entry.badge.variant} class={entry.badge.class} text={entry.badge.text} />}
+							</span>
+							<Icon name="right-caret" class="caret" size="1.25rem" />
+						</summary>
+						{current ? <template><SidebarRestorePoint /></template> : <SidebarRestorePoint />}
+						<Astro.self sublist={page ? entry.entries.slice(1) : entry.entries} nested />
+					</details>
+				</li>
+			);
+		})
+	}
+</ul>
+
+<style>
+	/* Starlight 0.42 SidebarSublist styles, unchanged, plus the group page link. */
+	@layer starlight.core {
+		ul {
+			--sl-sidebar-item-padding-inline: 0.5rem;
+			list-style: none;
+			padding: 0;
+		}
+
+		li {
+			overflow-wrap: anywhere;
+		}
+
+		ul ul li {
+			margin-inline-start: var(--sl-sidebar-item-padding-inline);
+			border-inline-start: 1px solid var(--sl-color-hairline-light);
+			padding-inline-start: var(--sl-sidebar-item-padding-inline);
+		}
+
+		.large {
+			font-size: var(--sl-text-lg);
+			font-weight: 600;
+			color: var(--sl-color-white);
+		}
+
+		.top-level > li + li {
+			margin-top: 0.75rem;
+		}
+
+		summary {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 0.2em var(--sl-sidebar-item-padding-inline);
+			line-height: 1.4;
+			cursor: pointer;
+			user-select: none;
+		}
+		summary::marker,
+		summary::-webkit-details-marker {
+			display: none;
+		}
+
+		.caret {
+			transition: transform 0.2s ease-in-out;
+			flex-shrink: 0;
+		}
+		:global([dir='rtl']) .caret {
+			transform: rotateZ(180deg);
+		}
+		[open] > summary .caret {
+			transform: rotateZ(90deg);
+		}
+
+		a {
+			display: block;
+			border-radius: 0.25rem;
+			text-decoration: none;
+			color: var(--sl-color-gray-2);
+			padding: 0.3em var(--sl-sidebar-item-padding-inline);
+			line-height: 1.4;
+		}
+
+		a:hover,
+		a:focus {
+			color: var(--sl-color-white);
+		}
+
+		[aria-current='page'],
+		[aria-current='page']:hover,
+		[aria-current='page']:focus {
+			font-weight: 600;
+			color: var(--sl-color-text-invert);
+			background-color: var(--sl-color-text-accent);
+		}
+
+		a > *:not(:last-child),
+		.group-label > *:not(:last-child) {
+			margin-inline-end: 0.25em;
+		}
+
+		/* The label link fills the label; only the caret toggles without navigating. */
+		.has-group-page > summary .group-label {
+			flex-grow: 1;
+			min-width: 0;
+		}
+
+		@media (min-width: 50rem) {
+			.top-level > li + li {
+				margin-top: 0.5rem;
+			}
+			.large {
+				font-size: var(--sl-text-base);
+			}
+			a {
+				font-size: var(--sl-text-sm);
+			}
+		}
+	}
+</style>

@@ -146,6 +146,19 @@ header.header {
   text-transform: none;
 }
 .sidebar-content details details > ul { padding-inline-start: 0.5rem; }
+/* A group with its own page (a conformance module): the label is the link to that page. */
+.sidebar-content summary a.group-page {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: inherit;
+}
+.sidebar-content summary a.group-page:is(:hover, :focus-visible) { color: var(--sl-color-white); text-decoration: underline; }
+.sidebar-content summary a.group-page[aria-current='page'] {
+  color: var(--sl-color-accent);
+  background: transparent;
+  font-weight: 650;
+}
 
 .draft-banner {
   display: flex;

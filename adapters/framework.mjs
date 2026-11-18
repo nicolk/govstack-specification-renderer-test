@@ -717,11 +717,13 @@ function transformBody({ page, pageRoutes, pageAnchors, base, metadata, authors,
   return `${generatedFrontmatter({ title, description, pagefind: isArchive ? false : undefined }, unofficial)}${body}`;
 }
 
+export const SIDEBAR_GROUP_PAGE = 'data-sidebar-group-page';
 const CONFORMANCE_MODULE_KINDS = { CORE: 'core', EXTENSION: 'extension' };
 
 // Requirement navigation follows metadata.yml `conformance_modules`: one sub-group per module,
 // in metadata order, holding the module page and then its functionalities in metadata order.
-// Starlight group labels are not links, so the module page is the sub-group's first item.
+// Starlight group labels are not links, so the module page is the sub-group's first item, marked
+// for src/components/GuideSidebarSublist.astro, which renders it as the group label's link.
 // Core modules start expanded and extensions collapsed; Starlight still opens a collapsed
 // group that holds the current page.
 function conformanceModuleGroups(toc, pagesBySource, conformanceModules) {
@@ -744,7 +746,9 @@ function conformanceModuleGroups(toc, pagesBySource, conformanceModules) {
     if (module.page) {
       if (!listed.has(module.page)) throw new Error(`metadata.yml: conformance module ${name} page ${module.page} is not listed in toc.yml`);
       label = pagesBySource.get(module.page).title;
-      items.push(item(module.page));
+      // The module page stays first in the data (search order, prev/next); the sidebar component
+      // renders it as the group label's link instead of a separate item.
+      items.push({ ...item(module.page), attrs: { [SIDEBAR_GROUP_PAGE]: true } });
       placed.add(module.page);
     } else {
       if (!module.title) throw new Error(`metadata.yml: conformance module ${name} without a page requires a title`);
